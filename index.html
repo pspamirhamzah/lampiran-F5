@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Distribusi Pupuk</title>
+    
+    <!-- React & ReactDOM (v18) -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel (untuk JSX) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Prop Types (Dependency Recharts UMD) -->
+    <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
+    
+    <!-- Recharts (Versi Stabil 2.8.0) -->
+    <script src="https://unpkg.com/recharts@2.8.0/umd/Recharts.js"></script>
+    
+    <!-- PapaParse (CSV Parser) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .card-shadow { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); }
+        /* Custom scrollbar for table */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+        const { 
+            LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
+            PieChart, Pie, Cell, AreaChart, Area
+        } = window.Recharts;
+
+        // --- Mock Data ---
+        const MOCK_DATA = [
+            { Produsen: "PT Pupuk Sriwidjaja", Nama_Distributor: "CV. SARI KARYA BERSAMA", Bulan: 1, Provinsi: "JAMBI", Produk: "UREA", Stok_Awal: 10, Penebusan: 225, Penyaluran: 220, Stok_Akhir: 15 },
+            { Produsen: "PT Pupuk Sriwidjaja", Nama_Distributor: "CV. SARI KARYA BERSAMA", Bulan: 1, Provinsi: "JAMBI", Produk: "NPK", Stok_Awal: 5, Penebusan: 100, Penyaluran: 80, Stok_Akhir: 25 },
+            { Produsen: "PT Petrokimia Gresik", Nama_Distributor: "PT. ANAK GRESIK RAYA", Bulan: 2, Provinsi: "JAWA TIMUR", Produk: "UREA", Stok_Awal: 50, Penebusan: 500, Penyaluran: 480, Stok_Akhir: 70 },
+            { Produsen: "PT Petrokimia Gresik", Nama_Distributor: "PT. ANAK GRESIK RAYA", Bulan: 2, Provinsi: "JAWA TIMUR", Produk: "ZA", Stok_Awal: 20, Penebusan: 150, Penyaluran: 140, Stok_Akhir: 30 },
+            { Produsen: "PT Pupuk Kujang", Nama_Distributor: "CV. TANI MAKMUR", Bulan: 3, Provinsi: "LAMPUNG", Produk: "SP-36", Stok_Awal: 15, Penebusan: 200, Penyaluran: 210, Stok_Akhir: 5 },
+            { Produsen: "PT Pupuk Kujang", Nama_Distributor: "CV. TANI MAKMUR", Bulan: 3, Provinsi: "LAMPUNG", Produk: "UREA", Stok_Awal: 100, Penebusan: 600, Penyaluran: 650, Stok_Akhir: 50 },
+            { Produsen: "PT Pupuk Kaltim", Nama_Distributor: "PT. BATU KARYA", Bulan: 4, Provinsi: "JAWA TIMUR", Produk: "ORGANIK", Stok_Awal: 30, Penebusan: 100, Penyaluran: 90, Stok_Akhir: 40 },
+            { Produsen: "PT Pupuk Sriwidjaja", Nama_Distributor: "CV. AGRO JAYA", Bulan: 5, Provinsi: "SUMATERA SELATAN", Produk: "UREA", Stok_Awal: 80, Penebusan: 400, Penyaluran: 380, Stok_Akhir: 100 },
+            { Produsen: "PT Pupuk Sriwidjaja", Nama_Distributor: "CV. AGRO JAYA", Bulan: 5, Provinsi: "SUMATERA SELATAN", Produk: "NPK", Stok_Awal: 40, Penebusan: 200, Penyaluran: 220, Stok_Akhir: 20 },
+            { Produsen: "PT Pupuk Iskandar Muda", Nama_Distributor: "PT. SUBUR ABADI", Bulan: 6, Provinsi: "ACEH", Produk: "UREA", Stok_Awal: 60, Penebusan: 300, Penyaluran: 290, Stok_Akhir: 70 },
+        ];
+
+        // Generate additional mock data
+        for(let i=7; i<=12; i++) {
+            MOCK_DATA.push({
+                Produsen: i % 2 === 0 ? "PT Pupuk Sriwidjaja" : "PT Pupuk Kaltim",
+                Nama_Distributor: "MOCK DISTRIBUTOR " + i,
+                Bulan: i,
+                Provinsi: i % 2 === 0 ? "JAWA TIMUR" : "KALIMANTAN TIMUR",
+                Produk: i % 3 === 0 ? "NPK" : "UREA",
+                Stok_Awal: 50,
+                Penebusan: Math.floor(Math.random() * 500) + 100,
+                Penyaluran: Math.floor(Math.random() * 500) + 100,
+                Stok_Akhir: 50
+            });
+        }
+
+        const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
+        const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Ags", "Sep", "Okt", "Nov", "Des"];
+
+        // --- Icons ---
+        const IconUpload = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>;
+        const IconBox = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>;
+        const IconTruck = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>;
+        const IconTrending = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>;
+        const IconUsers = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>;
+        const IconFilter = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>;
+        const IconChevronDown = () => <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>;
+
+        const App = () => {
+            const [rawData, setRawData] = useState(MOCK_DATA);
+            const [filteredData, setFilteredData] = useState(MOCK_DATA);
+            const [isUsingMock, setIsUsingMock] = useState(true);
+
+            // Filter States
+            const [filterProv, setFilterProv] = useState("All");
+            const [filterProd, setFilterProd] = useState("All");
+            const [filterProdusen, setFilterProdusen] = useState("All");
+            const [filterDistributor, setFilterDistributor] = useState("All");
+
+            // Handle File Upload
+            const handleFileUpload = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                Papa.parse(file, {
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: (results) => {
+                        const cleanedData = results.data.map(row => {
+                            const getKey = (keyName) => Object.keys(row).find(k => k.trim().toLowerCase() === keyName.toLowerCase());
+                            return {
+                                Produsen: row[getKey('Produsen')] || row[getKey('Kode Produsen')] || "N/A",
+                                Nama_Distributor: row[getKey('Nama Distributor')] || "Unknown",
+                                Bulan: parseInt(row[getKey('Bulan')]) || 0,
+                                Provinsi: row[getKey('Provinsi')] || "Unknown",
+                                Produk: row[getKey('Produk')] || "Unknown",
+                                Stok_Awal: parseFloat(row[getKey('Stok Awal')]) || 0,
+                                Penebusan: parseFloat(row[getKey('Penebusan')]) || 0,
+                                Penyaluran: parseFloat(row[getKey('Penyaluran')]) || 0,
+                                Stok_Akhir: parseFloat(row[getKey('Stok Akhir')]) || 0,
+                            };
+                        }).filter(item => item.Bulan > 0);
+
+                        setRawData(cleanedData);
+                        setFilteredData(cleanedData);
+                        setIsUsingMock(false);
+                        // Reset filters on new upload
+                        setFilterProv("All");
+                        setFilterProd("All");
+                        setFilterProdusen("All");
+                        setFilterDistributor("All");
+                    }
+                });
+            };
+
+            // Main Filter Logic
+            useEffect(() => {
+                let temp = rawData;
+                
+                if (filterProv !== "All") {
+                    temp = temp.filter(d => d.Provinsi === filterProv);
+                }
+                if (filterProd !== "All") {
+                    temp = temp.filter(d => d.Produk === filterProd);
+                }
+                if (filterProdusen !== "All") {
+                    temp = temp.filter(d => d.Produsen === filterProdusen);
+                }
+                if (filterDistributor !== "All") {
+                    temp = temp.filter(d => d.Nama_Distributor === filterDistributor);
+                }
+
+                setFilteredData(temp);
+            }, [filterProv, filterProd, filterProdusen, filterDistributor, rawData]);
+
+            // Aggregations
+            const kpi = useMemo(() => {
+                const totalPenyaluran = filteredData.reduce((acc, curr) => acc + curr.Penyaluran, 0);
+                const totalPenebusan = filteredData.reduce((acc, curr) => acc + curr.Penebusan, 0);
+                const avgStokAkhir = filteredData.length ? filteredData.reduce((acc, curr) => acc + curr.Stok_Akhir, 0) / filteredData.length : 0;
+                const uniqueDistributors = new Set(filteredData.map(d => d.Nama_Distributor)).size;
+                return { totalPenyaluran, totalPenebusan, avgStokAkhir, uniqueDistributors };
+            }, [filteredData]);
+
+            const trendData = useMemo(() => {
+                const grouped = {};
+                filteredData.forEach(d => {
+                    if (!grouped[d.Bulan]) grouped[d.Bulan] = { name: MONTH_NAMES[d.Bulan-1], Penyaluran: 0, Penebusan: 0 };
+                    grouped[d.Bulan].Penyaluran += d.Penyaluran;
+                    grouped[d.Bulan].Penebusan += d.Penebusan;
+                });
+                return Object.values(grouped).sort((a,b) => MONTH_NAMES.indexOf(a.name) - MONTH_NAMES.indexOf(b.name));
+            }, [filteredData]);
+
+            const productData = useMemo(() => {
+                const grouped = {};
+                filteredData.forEach(d => {
+                    if (!grouped[d.Produk]) grouped[d.Produk] = 0;
+                    grouped[d.Produk] += d.Penyaluran;
+                });
+                return Object.entries(grouped)
+                    .map(([name, value]) => ({ name, value }))
+                    .sort((a,b) => b.value - a.value);
+            }, [filteredData]);
+
+            const provinceData = useMemo(() => {
+                const grouped = {};
+                filteredData.forEach(d => {
+                    if (!grouped[d.Provinsi]) grouped[d.Provinsi] = 0;
+                    grouped[d.Provinsi] += d.Penyaluran;
+                });
+                return Object.entries(grouped)
+                    .map(([name, value]) => ({ name, value }))
+                    .sort((a,b) => b.value - a.value)
+                    .slice(0, 10); 
+            }, [filteredData]);
+
+            // Options generation (Sort alphabetically)
+            const uniqueProvinces = useMemo(() => [...new Set(rawData.map(d => d.Provinsi))].filter(Boolean).sort(), [rawData]);
+            const uniqueProducts = useMemo(() => [...new Set(rawData.map(d => d.Produk))].filter(Boolean).sort(), [rawData]);
+            const uniqueProdusen = useMemo(() => [...new Set(rawData.map(d => d.Produsen))].filter(Boolean).sort(), [rawData]);
+            const uniqueDistributors = useMemo(() => [...new Set(rawData.map(d => d.Nama_Distributor))].filter(Boolean).sort(), [rawData]);
+
+            const formatNumber = (num) => new Intl.NumberFormat('id-ID').format(Math.round(num));
+
+            return (
+                <div className="min-h-screen p-6">
+                    {/* Header */}
+                    <div className="flex flex-col md:flex-row justify-between items-center mb-8 bg-white p-6 rounded-xl card-shadow border-l-4 border-blue-600">
+                        <div>
+                            <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                                <span className="text-blue-600"><IconTrending /></span>
+                                Dashboard Distribusi Pupuk
+                            </h1>
+                            <p className="text-gray-500 text-sm mt-1">Monitoring Penebusan & Penyaluran Pupuk Bersubsidi</p>
+                        </div>
+                        <div className="flex gap-4 mt-4 md:mt-0 items-center">
+                            {isUsingMock && (
+                                <span className="text-xs font-bold bg-amber-100 text-amber-800 px-3 py-1 rounded-full border border-amber-200">
+                                    Demo Mode
+                                </span>
+                            )}
+                            <label className="cursor-pointer bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg flex items-center gap-2 transition shadow-md shadow-blue-200 group">
+                                <IconUpload />
+                                <span className="font-medium">Upload F5 (.csv)</span>
+                                <input type="file" accept=".csv" onChange={handleFileUpload} className="hidden" />
+                            </label>
+                        </div>
+                    </div>
+
+                    {/* Filter Section */}
+                    <div className="bg-white p-6 rounded-xl card-shadow mb-8">
+                        <div className="flex items-center gap-2 mb-6 text-gray-800 font-bold text-lg border-b pb-3">
+                            <div className="bg-gray-100 p-1.5 rounded-md"><IconFilter /></div>
+                            <span>Filter Data Interaktif</span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                            
+                            {/* Filter Produsen (Blue Theme) */}
+                            <div>
+                                <label className="block text-xs font-bold text-blue-700 mb-1.5 uppercase tracking-wide">Produsen</label>
+                                <div className="relative">
+                                    <select 
+                                        className="w-full appearance-none bg-blue-50 border border-blue-200 text-blue-900 text-sm font-medium rounded-lg p-3 pr-8 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition cursor-pointer hover:bg-blue-100"
+                                        value={filterProdusen} 
+                                        onChange={(e) => setFilterProdusen(e.target.value)}
+                                    >
+                                        <option value="All">Semua Produsen</option>
+                                        {uniqueProdusen.map(p => <option key={p} value={p}>{p}</option>)}
+                                    </select>
+                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-blue-600">
+                                        <IconChevronDown />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Filter Provinsi (Teal Theme) */}
+                            <div>
+                                <label className="block text-xs font-bold text-teal-700 mb-1.5 uppercase tracking-wide">Provinsi</label>
+                                <div className="relative">
+                                    <select 
+                                        className="w-full appearance-none bg-teal-50 border border-teal-200 text-teal-900 text-sm font-medium rounded-lg p-3 pr-8 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none transition cursor-pointer hover:bg-teal-100"
+                                        value={filterProv} 
+                                        onChange={(e) => setFilterProv(e.target.value)}
+                                    >
+                                        <option value="All">Semua Provinsi</option>
+                                        {uniqueProvinces.map(p => <option key={p} value={p}>{p}</option>)}
+                                    </select>
+                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-teal-600">
+                                        <IconChevronDown />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Filter Produk (Amber Theme) */}
+                            <div>
+                                <label className="block text-xs font-bold text-amber-700 mb-1.5 uppercase tracking-wide">Produk</label>
+                                <div className="relative">
+                                    <select 
+                                        className="w-full appearance-none bg-amber-50 border border-amber-200 text-amber-900 text-sm font-medium rounded-lg p-3 pr-8 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition cursor-pointer hover:bg-amber-100"
+                                        value={filterProd} 
+                                        onChange={(e) => setFilterProd(e.target.value)}
+                                    >
+                                        <option value="All">Semua Produk</option>
+                                        {uniqueProducts.map(p => <option key={p} value={p}>{p}</option>)}
+                                    </select>
+                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-amber-600">
+                                        <IconChevronDown />
+                                    </div>
+                                </div>
+                            </div>
+
+                             {/* Filter Distributor (Indigo Theme) */}
+                             <div>
+                                <label className="block text-xs font-bold text-indigo-700 mb-1.5 uppercase tracking-wide">Distributor</label>
+                                <div className="relative">
+                                    <select 
+                                        className="w-full appearance-none bg-indigo-50 border border-indigo-200 text-indigo-900 text-sm font-medium rounded-lg p-3 pr-8 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition cursor-pointer hover:bg-indigo-100"
+                                        value={filterDistributor} 
+                                        onChange={(e) => setFilterDistributor(e.target.value)}
+                                    >
+                                        <option value="All">Semua Distributor</option>
+                                        {uniqueDistributors.map(d => <option key={d} value={d}>{d}</option>)}
+                                    </select>
+                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-indigo-600">
+                                        <IconChevronDown />
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    {/* KPI Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                        {/* Card 1 */}
+                        <div className="bg-white p-6 rounded-xl card-shadow border-l-4 border-blue-500 transition hover:shadow-lg">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <p className="text-gray-500 text-sm font-medium">Total Penyaluran</p>
+                                    <h3 className="text-2xl font-bold text-gray-800 mt-1">{formatNumber(kpi.totalPenyaluran)} <span className="text-xs text-gray-400 font-normal">Ton</span></h3>
+                                </div>
+                                <div className="p-2.5 bg-blue-50 rounded-lg text-blue-600">
+                                    <IconTruck />
+                                </div>
+                            </div>
+                        </div>
+                        {/* Card 2 */}
+                        <div className="bg-white p-6 rounded-xl card-shadow border-l-4 border-green-500 transition hover:shadow-lg">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <p className="text-gray-500 text-sm font-medium">Total Penebusan</p>
+                                    <h3 className="text-2xl font-bold text-gray-800 mt-1">{formatNumber(kpi.totalPenebusan)} <span className="text-xs text-gray-400 font-normal">Ton</span></h3>
+                                </div>
+                                <div className="p-2.5 bg-green-50 rounded-lg text-green-600">
+                                    <IconBox />
+                                </div>
+                            </div>
+                        </div>
+                        {/* Card 3 */}
+                        <div className="bg-white p-6 rounded-xl card-shadow border-l-4 border-orange-500 transition hover:shadow-lg">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <p className="text-gray-500 text-sm font-medium">Rata-rata Stok Akhir</p>
+                                    <h3 className="text-2xl font-bold text-gray-800 mt-1">{formatNumber(kpi.avgStokAkhir)} <span className="text-xs text-gray-400 font-normal">Ton</span></h3>
+                                </div>
+                                <div className="p-2.5 bg-orange-50 rounded-lg text-orange-600">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                                </div>
+                            </div>
+                        </div>
+                         {/* Card 4 */}
+                         <div className="bg-white p-6 rounded-xl card-shadow border-l-4 border-purple-500 transition hover:shadow-lg">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <p className="text-gray-500 text-sm font-medium">Distributor Aktif</p>
+                                    <h3 className="text-2xl font-bold text-gray-800 mt-1">{kpi.uniqueDistributors} <span className="text-xs text-gray-400 font-normal">Entitas</span></h3>
+                                </div>
+                                <div className="p-2.5 bg-purple-50 rounded-lg text-purple-600">
+                                    <IconUsers />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Charts Section 1: Trend & Product Mix */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                        {/* Trend Chart */}
+                        <div className="bg-white p-6 rounded-xl card-shadow lg:col-span-2">
+                            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                                <span className="w-1 h-6 bg-blue-500 rounded-full"></span>
+                                Tren Penebusan vs Penyaluran
+                            </h3>
+                            <div className="h-80 w-full">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <AreaChart data={trendData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                                        <defs>
+                                            <linearGradient id="colorPenebusan" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#82ca9d" stopOpacity={0.8}/>
+                                                <stop offset="95%" stopColor="#82ca9d" stopOpacity={0}/>
+                                            </linearGradient>
+                                            <linearGradient id="colorPenyaluran" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#0088FE" stopOpacity={0.8}/>
+                                                <stop offset="95%" stopColor="#0088FE" stopOpacity={0}/>
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb"/>
+                                        <XAxis dataKey="name" axisLine={false} tickLine={false} dy={10} style={{ fontSize: '12px', fill: '#6b7280' }}/>
+                                        <YAxis axisLine={false} tickLine={false} dx={-10} style={{ fontSize: '12px', fill: '#6b7280' }}/>
+                                        <Tooltip 
+                                            formatter={(value) => new Intl.NumberFormat('id-ID').format(value)} 
+                                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+                                        />
+                                        <Legend wrapperStyle={{ paddingTop: '20px' }}/>
+                                        <Area type="monotone" dataKey="Penebusan" stroke="#82ca9d" strokeWidth={2} fillOpacity={1} fill="url(#colorPenebusan)" />
+                                        <Area type="monotone" dataKey="Penyaluran" stroke="#0088FE" strokeWidth={2} fillOpacity={1} fill="url(#colorPenyaluran)" />
+                                    </AreaChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+
+                        {/* Product Pie Chart */}
+                        <div className="bg-white p-6 rounded-xl card-shadow">
+                             <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                                <span className="w-1 h-6 bg-amber-500 rounded-full"></span>
+                                Komposisi Produk
+                            </h3>
+                            <div className="h-80 w-full">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <PieChart>
+                                        <Pie
+                                            data={productData}
+                                            cx="50%"
+                                            cy="50%"
+                                            innerRadius={60}
+                                            outerRadius={100}
+                                            fill="#8884d8"
+                                            paddingAngle={5}
+                                            dataKey="value"
+                                            label={({name, percent}) => `${name} ${(percent * 100).toFixed(0)}%`}
+                                        >
+                                            {productData.map((entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                            ))}
+                                        </Pie>
+                                        <Tooltip formatter={(value) => new Intl.NumberFormat('id-ID').format(value)} />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Charts Section 2: Regional Performance & Table */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                         {/* Bar Chart Provinces */}
+                         <div className="bg-white p-6 rounded-xl card-shadow">
+                            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                                <span className="w-1 h-6 bg-indigo-500 rounded-full"></span>
+                                Top 10 Wilayah
+                            </h3>
+                            <div className="h-96 w-full">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart
+                                        layout="vertical"
+                                        data={provinceData}
+                                        margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
+                                    >
+                                        <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e5e7eb"/>
+                                        <XAxis type="number" axisLine={false} tickLine={false} style={{ fontSize: '12px', fill: '#6b7280' }}/>
+                                        <YAxis dataKey="name" type="category" width={100} axisLine={false} tickLine={false} style={{fontSize: '11px', fontWeight: '500', fill: '#4b5563'}} />
+                                        <Tooltip 
+                                            formatter={(value) => new Intl.NumberFormat('id-ID').format(value)}
+                                            cursor={{fill: '#f3f4f6'}}
+                                        />
+                                        <Bar dataKey="value" fill="#0088FE" radius={[0, 4, 4, 0]} barSize={24}>
+                                            {provinceData.map((entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={index < 3 ? '#2563eb' : '#93c5fd'} />
+                                            ))}
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+
+                        {/* Top Distributor Table */}
+                        <div className="bg-white p-6 rounded-xl card-shadow overflow-hidden flex flex-col">
+                             <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                                <span className="w-1 h-6 bg-gray-500 rounded-full"></span>
+                                Detail Transaksi
+                            </h3>
+                            <div className="overflow-x-auto custom-scrollbar flex-grow border rounded-lg border-gray-100">
+                                <table className="min-w-full divide-y divide-gray-200">
+                                    <thead className="bg-gray-50 sticky top-0 z-10">
+                                        <tr>
+                                            <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Produsen</th>
+                                            <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Distributor</th>
+                                            <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Provinsi</th>
+                                            <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Produk</th>
+                                            <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Penebusan</th>
+                                            <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Penyaluran</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-200">
+                                        {filteredData.slice(0, 50).map((row, idx) => (
+                                            <tr key={idx} className="hover:bg-blue-50 transition-colors">
+                                                <td className="px-6 py-3.5 whitespace-nowrap text-sm text-gray-600">{row.Produsen}</td>
+                                                <td className="px-6 py-3.5 whitespace-nowrap text-sm font-medium text-gray-800 truncate max-w-xs" title={row.Nama_Distributor}>{row.Nama_Distributor}</td>
+                                                <td className="px-6 py-3.5 whitespace-nowrap text-sm text-gray-500">{row.Provinsi}</td>
+                                                <td className="px-6 py-3.5 whitespace-nowrap text-sm text-gray-500">
+                                                    <span className={`px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full ${row.Produk === 'UREA' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}`}>
+                                                        {row.Produk}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-3.5 whitespace-nowrap text-sm text-gray-500 text-right font-mono">{formatNumber(row.Penebusan)}</td>
+                                                <td className="px-6 py-3.5 whitespace-nowrap text-sm text-gray-500 text-right font-mono font-bold text-blue-600">{formatNumber(row.Penyaluran)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                             <div className="mt-4 text-center text-xs font-medium text-gray-400">
+                                    {filteredData.length > 50 ? `Menampilkan 50 data teratas dari total ${filteredData.length} data` : `Menampilkan ${filteredData.length} data`}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
